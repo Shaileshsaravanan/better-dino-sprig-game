@@ -1,7 +1,7 @@
 /*
 @title: better dino
 @tags: ['endless', 'better dino']
-@addedOn: 2024-08-24
+@addedOn: 2024-08-26
 @author: shaileshsaravanan
 */
 
@@ -9,13 +9,16 @@ const h = 10;
 const w = 20;
 let running = true;
 let score = 0;
+let highScore = 0;
 
 const player = "p";
 const player2 = "P";
 const cactus = "c";
 const cactus2 = "C";
+const bird = "b";
 const cloud = "d";
 const floor = "f";
+const powerUp = "u";
 
 setLegend(
   [player, bitmap`
@@ -86,6 +89,23 @@ LLLLLLLLLLLL1...
 ......0DD0.D0...
 ......DDDD.DD...
 ................`],
+  [bird, bitmap`
+................
+......11111.....
+.....1.....1....
+.....1.1.1.1....
+......1.1.1.....
+.......1.1......
+......11111.....
+................
+................
+................
+................
+................
+................
+................
+................
+................`],
   [cloud, bitmap`
 ................
 ................
@@ -104,22 +124,39 @@ LLLLLLLLLLLL1...
 ................
 ................`],
   [floor, bitmap`
-DDDDDDDDDDDDDDDD
-DDDDDDDDDDDDDDDD
-DDDDDDDDDDDDDDDD
-DDDDDDDDDDDDDDDD
-DDDDDDDDDDDDDDDD
-DDDDDDDDDDDDDDDD
-DDDDDDDDDDDDDDDD
-DDDDDDDDDDDDDDDD
-DDDDDDDDDDDDDDDD
-DDDDDDDDDDDDDDDD
-DDDDDDDDDDDDDDDD
-DDDDDDDDDDDDDDDD
-DDDDDDDDDDDDDDDD
-DDDDDDDDDDDDDDDD
-DDDDDDDDDDDDDDDD
-DDDDDDDDDDDDDDDD`]
+0000000000000000
+0000000000000000
+0000000000000000
+0000000000000000
+0000000000000000
+0000000000000000
+0000000000000000
+0000000000000000
+0000000000000000
+0000000000000000
+0000000000000000
+0000000000000000
+0000000000000000
+0000000000000000
+0000000000000000
+0000000000000000`],
+  [powerUp, bitmap`
+................
+................
+................
+................
+...........11...
+.......1.L.L1...
+.......1.L.L1...
+...........11...
+................
+................
+................
+................
+................
+................
+................
+................`]
 );
 
 const ground = () => {
@@ -167,6 +204,7 @@ setMap(layers.join("\n"));
 let jumping = false;
 let jumpCount = 0;
 let jumpDirection = 1;
+let birdSpeed = 1; // Bird's speed
 
 const playerSprite = () => {
   return getFirst(player) ? getFirst(player) : getFirst(player2);
@@ -178,14 +216,29 @@ onInput("w", () => {
   }
 });
 
+onInput("s", () => {
+  if (!running) {
+    running = true;
+    score = 0;
+    layers = [];
+    for (let i = 0; i < 3; i++) {
+      layers.push(airWithClouds());
+    }
+    for (let i = 0; i < 4; i++) {
+      layers.push(air());
+    }
+    layers.push(main());
+    layers.push(ground());
+    layers.push(ground());
+    setMap(layers.join("\n"));
+  }
+});
+
 setInterval(() => {
   if (running) {
     clearText();
-    addText(score.toString(), {
-      x: 1,
-      y: 4,
-      color: color`0`,
-    });
+    addText(`Score: ${score}`, { x: 1, y: 4, color: color`0` });
+    addText(`High Score: ${highScore}`, { x: 1, y: 5, color: color`0` });
     score++;
 
     for (let i = 0; i < 3; i++) {
@@ -199,31 +252,37 @@ setInterval(() => {
     }
 
     layers[7] = layers[7].substring(1);
-    if (Math.floor(Math.random() * 10) == 1) {
-      layers[7] = layers[7] + (Math.floor(Math.random() * 2) == 0 ? cactus : cactus2);
+    if (Math.floor(Math.random() * 15) == 1) { 
+      layers[7] += (Math.floor(Math.random() * 4) == 0 ? bird : (Math.floor(Math.random() * 3) == 0 ? cactus : (Math.floor(Math.random() * 2) == 0 ? cactus2 : powerUp)));
     } else {
-      layers[7] = layers[7] + ".";
+      layers[7] += ".";
     }
 
     for (let currentCactus of getAll(cactus)) {
       if (currentCactus.x == 2 && playerSprite().y == 7) {
-        running = false;
-        addText("game over!", {
-          x: 7,
-          y: 4,
-          color: color`0`,
-        });
+        endGame();
       }
     }
- 
+
     for (let currentCactus2 of getAll(cactus2)) {
       if (currentCactus2.x == 2 && playerSprite().y == 7) {
-        running = false;
-        addText("game over!", {
-          x: 7,
-          y: 4,
-          color: color`0`,
-        });
+        endGame();
+      }
+    }
+
+    for (let currentBird of getAll(bird)) {
+      currentBird.x -= birdSpeed; // Move bird left
+
+      // Detect collision with player
+      if (currentBird.x == 1 && playerSprite().y == 5) {
+        endGame();
+      }
+    }
+
+    for (let currentPowerUp of getAll(powerUp)) {
+      if (currentPowerUp.x == 2 && playerSprite().y == 7) {
+        score += 5; // Grant bonus score for power-ups
+        currentPowerUp.remove();
       }
     }
 
@@ -244,7 +303,17 @@ setInterval(() => {
     }
 
     layers[7] = layers[7].replace(player, ".").replace(player2, ".");
-    layers[7 - jumpCount] = layers[7 - jumpCount].substring(0, 1) + (score % 2 == 0 ? player : player2) + layers[7 - jumpCount].substring(2, layers[7 - jumpCount].length);
+    layers[7 - jumpCount] = layers[7 - jumpCount].substring(0, 1) + (score % 2 == 0 ? player : player2) + layers[7 - jumpCount].substring(2);
     setMap(layers.join("\n"));
   }
 }, 80);
+
+const endGame = () => {
+  running = false;
+  highScore = Math.max(highScore, score);
+  
+  clearText();
+  addText("Game Over!", { x: 6, y: 4, color: color`0` });
+  addText(`Final Score: ${score}`, { x: 5, y: 5, color: color`0` });
+  addText("Press S to Restart", { x: 5, y: 6, color: color`0` });
+};
